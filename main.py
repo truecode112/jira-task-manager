@@ -13,6 +13,8 @@ JIRA_API_TOKEN = config('JIRA_API_TOKEN')
 
 jira_options = {'server': config('JIRA_INSTANCE')}
 jira = JIRA(options = jira_options, basic_auth=(config('JIRA_EMAIL'), JIRA_API_TOKEN))
+jira_all_fields = jira.fields()
+name_map = {field['name']: field['id'] for field in jira_all_fields}
 
 def show_projects():
 	projects = jira.projects()
@@ -48,14 +50,24 @@ def compare_by_due_date(issue1, issue2):
 		else:
 			return 1
 
+def filter_by_start_date(issue):
+	start_date_string = getattr(issue.fields, name_map["Start date"])
+	if start_date_string == None:
+		return True
+	start_date = datetime.strptime(start_date_string, "%Y-%m-%d").date()
+	today = date.today()
+	return start_date < today
+
 def sort_and_filter_issue(issues):
 	sorted_issues = sorted(issues, key=lambda x: x.fields.assignee.displayName)
 	grouped_issues_by_assignee = itertools.groupby(sorted_issues, key=lambda x: x.fields.assignee.displayName)
 	for assignee, group in grouped_issues_by_assignee:
 		print(f"\nAssignee: {assignee}")
 		group = sorted(group, key=cmp_to_key(compare_by_due_date))
+		group = list(filter(filter_by_start_date, group))
 		for issue in group:
-			print(f"Issue: {issue.fields.summary} {issue.fields.duedate}")
+			startDate = getattr(issue.fields, name_map["Start date"])
+			print(f"Issue: {issue.fields.summary} {issue.fields.updated} {startDate}")
 	return grouped_issues_by_assignee
 
 def review_tasks(project):
