@@ -20,16 +20,33 @@ name_map = {field['name']: field['id'] for field in jira_all_fields}
 
 def show_projects():
 	projects = jira.projects()
-	print(f"Available projects")
+	if len(projects) == 0:
+		logging.info("No projects")
+		return False
+	
+	print(f"\nAvailable projects")
 	project_index = 0
 	for project in projects:
-		print(f"{project_index}. {project.name}")
+		print(f"\t{project_index}. {project.name}")
 		project_index = project_index + 1
 	
-	selected_index = input("Select a project number: ")
-	selected_index = int(selected_index)
-	if selected_index >= 0 and selected_index < len(projects):
-		review_tasks(projects[selected_index])
+	print(f"\tq. Exit")
+	selected_index = input("Select a project : ")
+	if selected_index == 'q':
+		return False
+	
+	try:
+		selected_index = int(selected_index)
+		if selected_index >= 0 and selected_index < len(projects):
+			review_tasks(projects[selected_index])
+		else:
+			logging.warning("Please select valid project")
+	except ValueError:
+		logging.error("Please select valid project")
+	except:
+		logging.error("Something went wrong")
+		
+	return True
 
 def compare_by_date(date1, date2):
 	if date1 == None and date2 == None:
@@ -120,33 +137,43 @@ def request_update_from_reporter(PersonName, TaskData):
 def review_tasks(project):
 	issues = jira.search_issues(jql_str=f"project = {project.name}")
 
+	if len(issues) == 0:
+		logging.info("No issues")
+		return
+
 	# Get assigned issues
 	assigned_issues = list(filter(lambda x: x.fields.assignee != None, issues))
-	sorted_issues = sorted(assigned_issues, key=lambda x: x.fields.assignee.displayName)
-	grouped_issues_by_assignee = itertools.groupby(sorted_issues, key=lambda x: x.fields.assignee.displayName)
-	for assignee, group in grouped_issues_by_assignee:
-		# print(f"\nAssignee: {assignee}")
-		group = sort_and_filter_issue(group)
-		if len(group) > 0:
-			request_update_from_assignee(assignee, group[0])
-		# print_issues(group)
+	if len(assigned_issues) > 0:
+		sorted_issues = sorted(assigned_issues, key=lambda x: x.fields.assignee.displayName)
+		grouped_issues_by_assignee = itertools.groupby(sorted_issues, key=lambda x: x.fields.assignee.displayName)
+		for assignee, group in grouped_issues_by_assignee:
+			# print(f"\nAssignee: {assignee}")
+			group = sort_and_filter_issue(group)
+			if len(group) > 0:
+				request_update_from_assignee(assignee, group[0])
+			# print_issues(group)
+	else:
+		logging.info("No assigned issues")
 		
 
 	non_assigned_issues = list(filter(lambda x: x.fields.assignee == None, issues))
-	sorted_issues = sorted(non_assigned_issues, key=lambda x: x.fields.reporter.displayName)
-	grouped_issues_by_reporter = itertools.groupby(sorted_issues, key=lambda x: x.fields.reporter.displayName)
-	for reporter, group in grouped_issues_by_reporter:
-		# print(f"\nReporter: {reporter}")
-		group = sort_and_filter_issue(group)
-		if len(group) > 0:
-			request_update_from_reporter(reporter, group[0])
-		# print_issues(group)
+	if len(non_assigned_issues) > 0:
+		sorted_issues = sorted(non_assigned_issues, key=lambda x: x.fields.reporter.displayName)
+		grouped_issues_by_reporter = itertools.groupby(sorted_issues, key=lambda x: x.fields.reporter.displayName)
+		for reporter, group in grouped_issues_by_reporter:
+			# print(f"\nReporter: {reporter}")
+			group = sort_and_filter_issue(group)
+			if len(group) > 0:
+				request_update_from_reporter(reporter, group[0])
+			# print_issues(group)
+	else:
+		logging.info("No unassigned issues")
 
-	# for reporter, group in grouped_issues_by_reporter:
-	# 	print(f"Reporter: {reporter}")
-	# 	for issue in group:
-	# 		print(f"Issue: {issue.fields.summary}")
-
-
+def main():
+	while True:
+		if show_projects():
+			continue
+		else:
+			break
 if __name__ == "__main__":
-	show_projects()
+	main()
